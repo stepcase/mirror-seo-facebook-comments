@@ -88,9 +88,9 @@ if ( !class_exists("SEOFacebookCommentsAdmin") )
         public function register()
         {
             register_setting( $this->group, $this->name );
-            wp_enqueue_script( 'dashboard' );
-            wp_enqueue_script( 'postbox' );
-            wp_enqueue_script( 'thickbox' );
+            //wp_enqueue_script( 'dashboard' );
+            //wp_enqueue_script( 'postbox' );
+            //wp_enqueue_script( 'thickbox' );
         }
 
         /**
