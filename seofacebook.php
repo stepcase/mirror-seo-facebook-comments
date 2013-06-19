@@ -546,7 +546,8 @@ if ( !class_exists("SEOFacebookComments") )
 				    $newCommentId = wp_insert_comment( $commentdata );
 
                     # Email Author on new comment
-                    $author_email = get_the_author_meta('user_email', $postId);
+                    $post = get_post($postId);
+                    $author_email = get_the_author_meta('user_email', $post->post_author);
                     $email_body = <<<EOD
 $userName has commented:
 $cleanComment
