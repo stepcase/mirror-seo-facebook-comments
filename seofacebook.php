@@ -545,6 +545,16 @@ if ( !class_exists("SEOFacebookComments") )
                     # ref file wp-includes/comment.php
 				    $newCommentId = wp_insert_comment( $commentdata );
 
+                    # Email Author on new comment
+                    $author_email = get_the_author_meta('user_email', $postId);
+                    $email_body = <<<EOD
+$userName has commented:
+$cleanComment
+
+To increase exposure and engagement of your post, please reply it at $postUrl
+EOD;
+                    wp_mail($author_email, 'Your Lifehack post has a new comment', $email_body);
+
                     # Lets keep track of all already inserted comments
 					$facebookCommentData = array(
 						'comment_ID'            => $newCommentId,
