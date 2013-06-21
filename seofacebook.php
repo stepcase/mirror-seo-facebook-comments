@@ -29,7 +29,7 @@ if ( !class_exists("SEOFacebookComments") )
 
     // Insert Facebook PHP Class, but first make sure no other plugins had done that before
     if ( !class_exists('SEOCommentFacebookConnect') )
-	    require_once ( WP_PLUGIN_DIR . '/seo-facebook-comments/facebook/seo_fb_comments_facebook.php' );
+	    require_once ( __DIR__ .'/facebook/seo_fb_comments_facebook.php' );
 
 	class SEOFacebookComments extends SEOFacebookCommentsAdmin
 	{
@@ -447,103 +447,94 @@ if ( !class_exists("SEOFacebookComments") )
 			echo "<div id=\"fbSEOComments\" style=\"width:{$this->options['width']}\"> Please, insert a valid <a href='$fb_optionsPage' style='color: #c00;'>App ID</a>, otherwise your plugin won't work correctly.</div>";
 		}
 
-        /**
-         *
-         * This method is responsible for the logic in adding the facebook comments into the wordpress comments database and also embending the facebook comment form
-         * @param string|string(required) $postUrl
-         * @param string|string(required) $postId
-         * @return void or string on error returns message else prints the comments on the page
-         * @TODO improve performance by doing some pre-query so all the checks will be performed only when there is new comments
-         */
-		public function fbAddComment($postUrl = '', $postId = '')
-		{
-			global $wpdb;
+        public function fbSyncComments($postUrl = '', $postId = '')
+        {
+            global $wpdb;
 
-			if( empty($postUrl) || empty($postId) )
-				echo 'You must insert an valid Url and Post ID';
+            if( empty($postUrl) || empty($postId) )
+                echo 'You must insert an valid Url and Post ID';
 
-			$fbOutputComments = '';
-			$facebook = $this->getFbCommentsApi();
+            $facebook = $this->getFbCommentsApi();
 
-			# Lets fetch all the necessary data from Facebook
-			# @TODO Maybe create a cache of the comments to improve performance, thousands of loads on this can do some mess I think
-			$queries = array('q1' => 'SELECT post_fbid, fromid, object_id, text, time '.
-									 'FROM comment '.
-									 'WHERE object_id in (SELECT comments_fbid FROM link_stat WHERE url ="'.$postUrl.'")', # '.$postUrl.'
-							 'q2' => 'SELECT post_fbid, fromid, object_id, text, time FROM comment WHERE object_id in (SELECT post_fbid FROM #q1)',
-							 'q3' => 'SELECT name, id, url, pic_square FROM profile WHERE id in (SELECT fromid FROM #q1) or id in (SELECT fromid FROM #q2)',
-							 );
+            # Lets fetch all the necessary data from Facebook
+            # @TODO Maybe create a cache of the comments to improve performance, thousands of loads on this can do some mess I think
+            $queries = array('q1' => 'SELECT post_fbid, fromid, object_id, text, time '.
+                                     'FROM comment '.
+                                     'WHERE object_id in (SELECT comments_fbid FROM link_stat WHERE url ="'.$postUrl.'")', # '.$postUrl.'
+                             'q2' => 'SELECT post_fbid, fromid, object_id, text, time FROM comment WHERE object_id in (SELECT post_fbid FROM #q1)',
+                             'q3' => 'SELECT name, id, url, pic_square FROM profile WHERE id in (SELECT fromid FROM #q1) or id in (SELECT fromid FROM #q2)',
+                             );
 
-			$queries = json_encode($queries);
-			$fbquery = array( "method" => "fql.multiquery", "queries" => $queries );
-			$result = $facebook->api($fbquery);
+            $queries = json_encode($queries);
+            $fbquery = array( "method" => "fql.multiquery", "queries" => $queries );
+            $result = $facebook->api($fbquery);
 
-			# Fetch the Authors of the comments
-			$comments['authors'] = $result[2]['fql_result_set'];
+            # Fetch the Authors of the comments
+            $comments['authors'] = $result[2]['fql_result_set'];
 
-			# Fetch the comments
-			$comments['comments'] = $result[0]['fql_result_set'];
+            # Fetch the comments
+            $comments['comments'] = $result[0]['fql_result_set'];
 
-			# Fetch the nested comments
-			$comments['comments'] = array_merge($comments['comments'], $result[1]['fql_result_set']);
+            # Fetch the nested comments
+            $comments['comments'] = array_merge($comments['comments'], $result[1]['fql_result_set']);
 
-			foreach($comments['comments'] as $comment)
-			{
-				$commentId = $comment['post_fbid'];
-				$objId = $comment['object_id'];
-				$timestamp = $comment['time'];
-				$userCommentId = $comment['fromid'];
-				$userName = '';	# name of the commenter
-				$userUrl = '';	# url of the commenter
+            foreach($comments['comments'] as $comment)
+            {
+                $commentId = $comment['post_fbid'];
+                $objId = $comment['object_id'];
+                $timestamp = $comment['time'];
+                $userCommentId = $comment['fromid'];
+                $userName = ''; # name of the commenter
+                $userUrl = '';  # url of the commenter
 
-				# If the comment dont exists lets add it
-				if( !$this->_checkIfCommentExists($commentId) )
-				{
-					# Who is the User that commented?
-					foreach($comments['authors'] as $user)
-					{
-						if ($userCommentId == $user['id'])
-						{
-							$userName = $user['name'];
-							$userUrl = $user['url'];
-						}
-					}
+                # If the comment dont exists lets add it
+                if( !$this->_checkIfCommentExists($commentId) )
+                {
+                    # Who is the User that commented?
+                    foreach($comments['authors'] as $user)
+                    {
+                        if ($userCommentId == $user['id'])
+                        {
+                            $userName = $user['name'];
+                            $userUrl = $user['url'];
+                        }
+                    }
 
-					# This comment have any parent?
-					$commentParentSql =	   "SELECT comment_ID
-											FROM {$this->table}
-											WHERE facebook_comment_ID = {$objId}";
+                    # This comment have any parent?
+                    $commentParentSql =    "SELECT comment_ID
+                                            FROM {$this->table}
+                                            WHERE facebook_comment_ID = {$objId}";
 
-					$commentParent = $wpdb->get_results($commentParentSql);
+                    $commentParent = $wpdb->get_results($commentParentSql);
 
-					if ($commentParent[0]->comment_ID);
-						$parent = $commentParent[0]->comment_ID;
+                    if ($commentParent[0]->comment_ID);
+                        $parent = $commentParent[0]->comment_ID;
 
 
                     # Lets strip html data before saving on the database
                     $cleanComment = esc_html( $comment['text'] );
 
                     # Prepare the data to be inserted in the comment database
-					$commentdata = array(
-						'comment_post_ID' => $postId,
-						'comment_author' => $userName,
-						'comment_author_email' => '',
-						'comment_author_url' => $userUrl,
-						'comment_author_IP' => $_SERVER['REMOTE_ADDR'],
-						'comment_date' => date('Y-m-d G:i:s', $timestamp),
-						'comment_date_gmt' => date('Y-m-d G:i:s', $timestamp),
-						'comment_content' => $cleanComment,
-						'comment_karma' => '',
-						'comment_approved' => isset($this->options['autoApprove']) ? 1 : 0,
-						'comment_agent' => $_SERVER['HTTP_USER_AGENT'],
-						'comment_type' => 'comment',
-						'comment_parent' => $parent,
-						'user_id' => 0
-					);
+                    $commentdata = array(
+                        'comment_post_ID' => $postId,
+                        'comment_author' => $userName,
+                        'comment_author_email' => '',
+                        'comment_author_url' => $userUrl,
+                        'comment_author_IP' => $_SERVER['REMOTE_ADDR'],
+                        'comment_date' => date('Y-m-d G:i:s', $timestamp),
+                        'comment_date_gmt' => date('Y-m-d G:i:s', $timestamp),
+                        'comment_content' => $cleanComment,
+                        'comment_karma' => '',
+                        'comment_approved' => isset($this->options['autoApprove']) ? 1 : 0,
+                        'comment_agent' => $_SERVER['HTTP_USER_AGENT'],
+                        'comment_type' => 'comment',
+                        'comment_parent' => $parent,
+                        'user_id' => 0
+                    );
 
                     # Insert the comment in the database and also updates the post comment count
                     # ref file wp-includes/comment.php
-				    $newCommentId = wp_insert_comment( $commentdata );
+                    $newCommentId = wp_insert_comment( $commentdata );
 
                     # Email Author on new comment
                     $post = get_post($postId);
@@ -557,18 +548,32 @@ EOD;
                     wp_mail($author_email, 'Your Lifehack post has a new comment', $email_body);
 
                     # Lets keep track of all already inserted comments
-					$facebookCommentData = array(
-						'comment_ID'            => $newCommentId,
-						'facebook_comment_ID'   => $commentId,
-						'facebook_user_ID'      => $userCommentId
-					);
+                    $facebookCommentData = array(
+                        'comment_ID'            => $newCommentId,
+                        'facebook_comment_ID'   => $commentId,
+                        'facebook_user_ID'      => $userCommentId
+                    );
 
-					$wpdb->insert($this->table, $facebookCommentData);
-				}
-			}
+                    $wpdb->insert($this->table, $facebookCommentData);
+                }
+            }
+
+        }
+
+        /**
+         *
+         * This method is responsible for the logic in adding the facebook comments into the wordpress comments database and also embending the facebook comment form
+         * @param string|string(required) $postUrl
+         * @param string|string(required) $postId
+         * @return void or string on error returns message else prints the comments on the page
+         * @TODO improve performance by doing some pre-query so all the checks will be performed only when there is new comments
+         */
+		public function fbAddComment($postUrl = '', $postId = '')
+		{
+            add_fb_comments_sync_task( array('id' => $postId, 'url' => $postUrl) );
 
 			# Finally Lets output the code that calls the facebook comment plugin with the user configuration
-			$fbOutputComments .= "\t<fb:comments
+			$fbOutputComments = "\t<fb:comments
 								href='{$postUrl}'
 								num_posts='{$this->options['numPosts']}'
 								width='{$this->options['width']}'

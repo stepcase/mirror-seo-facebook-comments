@@ -16,7 +16,7 @@
  */
 
 if ( !class_exists('BaseFacebook') )
-    require_once ( WP_PLUGIN_DIR . '/seo-facebook-comments/facebook/base_facebook.php' );
+    require_once ( __DIR__ . '/base_facebook.php' );
 
 if (!class_exists('SEOCommentFacebookConnect'))
 {
