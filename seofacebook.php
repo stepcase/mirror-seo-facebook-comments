@@ -570,8 +570,6 @@ EOD;
          */
 		public function fbAddComment($postUrl = '', $postId = '')
 		{
-            add_fb_comments_sync_task( array('id' => $postId, 'url' => $postUrl) );
-
 			# Finally Lets output the code that calls the facebook comment plugin with the user configuration
 			$fbOutputComments = "\t<fb:comments
 								href='{$postUrl}'
