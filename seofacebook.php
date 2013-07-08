@@ -91,8 +91,8 @@ if ( !class_exists("SEOFacebookComments") )
             add_action( 'wp_footer', array( &$this, 'share' ));
 
             register_activation_hook( __FILE__, array( &$this, 'install' ) );
-            register_deactivation_hook( __FILE__, array( &$this, 'remove' ) );
-            register_uninstall_hook( __FILE__, array( &$this, 'remove' ) );
+            // register_deactivation_hook( __FILE__, array( &$this, 'remove' ) );
+            // register_uninstall_hook( __FILE__, array( &$this, 'remove' ) );
 
             parent::__construct();
         }
