@@ -69,7 +69,7 @@ if ( !class_exists("SEOFacebookCommentsAdmin") )
         public function adminReceiver()
         {
             // Check the referer, only our page plugins can access this method
-            if ( !isset($_POST) )
+            if ( !isset($_POST) || !isset($_POST['_wp_http_referer']) )
                 return;
 
             $referer = wp_get_referer();
